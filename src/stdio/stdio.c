@@ -15,13 +15,19 @@
 
 #include <stdarg.h>
 
-#include "vga/vga.h"
+#include "graphics/graphics.h"
 
 #define MAX_N_DIGITS 64
 #define STRING_BUFFER_SIZE 512
 
+static uint8_t disablePrintK;
 char map[16] = {'0', '1', '2', '3', '4', '5', '6', '7',
                 '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+// Disable kernel printk
+void printkDisable() { disablePrintK = 1; }
+// Enable kernel printk
+void printkEnable() { disablePrintK = 0; }
 
 int utoan(uint64_t number, char *buffer, int radix, int n) {
   char digitsBuffer[MAX_N_DIGITS];
@@ -135,6 +141,9 @@ int itoan(int64_t number, char *buffer, int radix, int n) {
 
 // print format null-terminated string function
 void printk(const char *formatStr, ...) {
+  if (disablePrintK) {
+    return;
+  }
   char buffer[STRING_BUFFER_SIZE];
   size_t size = 0;
   int64_t number = 0;
@@ -193,5 +202,6 @@ void printk(const char *formatStr, ...) {
       i++;
     }
   }
-  printBuffer(buffer, size, VGA_COLOR_WHITE);
+  printBuffer(buffer, size, 255, 255, 255);
+  flushVideoMemory();
 }

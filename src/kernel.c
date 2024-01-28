@@ -18,8 +18,11 @@
 
 #include "acpi/acpi.h"
 #include "drivers/disk.h"
+#include "drivers/keyboard.h"
+#include "drivers/mouse.h"
 #include "fat16/fat16.h"
 #include "gdt/gdt.h"
+#include "graphics/graphics.h"
 #include "idt/idt.h"
 #include "io/io.h"
 #include "memory/memory.h"
@@ -103,66 +106,30 @@ void kernelStart() {
 
   // Bootstrap processor (BP), currently running
   gActiveCpuCount = 1;
-  vgaInit();
+  // vgaInit();
+  // call after mouse initialization!
+
+  graphicsInit();
   printk(kernelStartString);
   acpiInit();
   ioAPICInit();
   localAPICInit();
   initializeIDT();
-  /*
-    // Keyboard initialization
-    outb(PS2_COMMAND_IO_PORT, PS2_DISABLE_FIRST_PORT_CMD);
-    outb(PS2_COMMAND_IO_PORT,
-         PS2_DISABLE_SECOND_PORT_CMD); // ignored if not supported
 
-    // flush device buffer
-    inb(PS2_DATA_IO_PORT);
-    outb(PS2_COMMAND_IO_PORT, PS2_READ_BYTE_0_CMD);
-    uint8_t status = inb(PS2_DATA_IO_PORT);
-    uint8_t secondCh =
-        (status & 0b00100000) == 0b00100000; // if 0 no second channel
-    if (secondCh == 0) {
-      printk("Keyboard initialization: there is no second channel\n");
-    }
-    status |= 0b01000011; //...0x11 enabled irqs for both ports
-    outb(PS2_COMMAND_IO_PORT, PS2_WRITE_NEXT_BYTE_0_CMD);
-    outb(PS2_DATA_IO_PORT, status);
-    // finsh PS/2 initalization by reenabling devices
-    outb(PS2_COMMAND_IO_PORT, PS2_ENABLE_FIRST_PORT_CMD);
-    outb(PS2_COMMAND_IO_PORT,
-         PS2_ENABLE_SECOND_PORT_CMD); // ignored if unsupported
-    outb(PS2_COMMAND_IO_PORT, PS2_RESET_CMD);
-  */
+  mouseInit();
+  keyboardInit();
   printFreeMemoryRegionList();
   initMemory();
   initTSS();
   initGDT();
   kInitVM();
-  loadTaskRegister(LONG_MODE_FIRST_TSS);
 
+  loadTaskRegister(LONG_MODE_FIRST_TSS);
   initSystemCalls();
   initStartupProcesses();
   startIdleProcess();
   smpInit();
   printk("Active cores count: %d\n", gActiveCpuCount);
-
-  /*
-  int64_t d = 19;
-  int64_t dd = -199999;
-  uint64_t u = 555;
-  uint64_t uu = -1;
-  uint64_t h = 1 << 15;
-  uint64_t hh = -1;
-
-  const char *testPrintkStr = "Testing printk function!";
-  printk("Printk d d test: %d %d\n", d, dd);
-  printk("Printk u u test: %u %u\n", u, uu);
-  printk("Printk x X x X test: %x %X %x %X\n", h, h, hh, hh);
-  printk("Printk b b test: %b %b\n", h, hh);
-  printk("Printk o o test: %o %o\n", h, hh);
-  printk("Printk %s\n", testPrintkStr);
-  printk("Printk % %% test\n");
-  */
   // acpiShutdown();
   // printk("ERROR: ACPI Shutdown failed!\n");
 }

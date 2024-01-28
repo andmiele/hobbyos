@@ -43,6 +43,7 @@ ORG 0x7e00                                      ; address at which BIOS loads th
         cmp dh, 0x1                             ; compare flag in dh to 1
         jz  .enterProtectedMode 	        ; jump to kernel if AP
         mov word[FAT16ReservedSectors], cx      ; cx contains FAT16 reserved sector number that counts the first 2 sectors (boot sector and second sector containing loader) and kernel image sectors
+
 ;        mov si, bootMsg		        ; put bootMsg string address in si
 ;        call printString16			; call 16-bit string print function
 

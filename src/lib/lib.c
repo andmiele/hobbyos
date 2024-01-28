@@ -14,9 +14,9 @@
 #include "lib.h"
 
 /*** Pointer List Data Structure ***/
-int isListEmpty(const struct ListHead *list) { return (list->next == NULL); }
+int isListEmpty(const struct List *list) { return (list->next == NULL); }
 
-void appendToListTail(struct ListHead *list, struct ListNode *node) {
+void appendToListTail(struct List *list, struct ListNode *node) {
   node->next = NULL;
   if (isListEmpty(list)) {
     list->next = node;
@@ -27,7 +27,15 @@ void appendToListTail(struct ListHead *list, struct ListNode *node) {
   }
 }
 
-struct ListNode *removeListHead(struct ListHead *list) {
+void appendToListHead(struct List *list, struct ListNode *node) {
+  node->next = list->next;
+  list->next = node;
+  if (isListEmpty(list)) {
+    list->tail = node;
+  }
+}
+
+struct ListNode *removeList(struct List *list) {
   struct ListNode *node = NULL;
 
   if (isListEmpty(list)) {

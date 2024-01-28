@@ -15,6 +15,7 @@
 
 #include "acpi/acpi.h"
 #include "drivers/keyboard.h"
+#include "drivers/mouse.h"
 #include "gdt/gdt.h"
 #include "io/io.h"
 #include "lib/lib.h"
@@ -81,7 +82,7 @@ void selectInterruptHandler(struct interruptFrame *framePtr) {
       printk("EXITING USER PROCESS %d\n",
              currentProcessArray[framePtr->coreId]->pid);
       exit();
-    } else {  // unhandled exception occured in rinr0
+    } else {  // unhandled exception occured in ring0
       printk("KERNEL PANIC!\n");
       while (1) {
       }
@@ -104,24 +105,12 @@ void int20Handler(struct interruptFrame *framePtr) {
 }
 
 // Keyboard handler
-void int21Handler(struct interruptFrame *framePtr) {
-  keyboardISR();
-  //  unsigned char c2[2] = {'\0', '\0'};
-  //  c2[0] = readCharFromKeyboardQueue();
-  //  if (c2[0] != 0) {
-  //    printk("%s", c2);
-  //  } else {
-  // printk("Keyboard: unsupported or released key; CORE: %d\n",
-  // framePtr->coreId);
-  //  }
-  /*
-    printk("interrupt %u, CORE %u, ring %u, errorCode %d, "
-           "accessed virtual address %x, rip %x\n",
-           framePtr->intNumber, framePtr->coreId, framePtr->cs & 3,
-           framePtr->errorCode, readCR2(), framePtr->rip);
-  */
-}
+void int21Handler(struct interruptFrame *framePtr) { keyboardISR(); }
 
+// Keyboard handler
+void int32Handler(struct interruptFrame *framePtr) {
+  mouseISR();
+}
 // Division by zero handler
 void int0Handler(struct interruptFrame *framePtr) {
   printk("UNHANDLED EXCEPTION: Divide by zero; CORE %d\n", framePtr->coreId);
@@ -183,18 +172,16 @@ void initializeIDT() {
   interruptHandlerAddressArray[0] = int0Handler;
   interruptHandlerAddressArray[0x20 + TIMER_IRQ] = int20Handler;
   interruptHandlerAddressArray[0x20 + KEYBOARD_IRQ] = int21Handler;
+  interruptHandlerAddressArray[0x20 + MOUSE_IRQ] = int32Handler;
 
   for (int i = 0; i < TOT_N_INTERRUPTS; i++) {
     setIDTDescriptor(i, (void *)isrAddressArray[i]);
   }
 
-  // defined in idt.asm
-  // setIDTDescriptor(0, isr0);
-  // setIDTDescriptor(0x20 + TIMER_IRQ, int20);
-  // setIDTDescriptor(0x20 + KEYBOARD_IRQ, int21);
   setIDTDescriptor(0x20 + SPURIOUS_IRQ, intFF);
   remapIRQ(TIMER_IRQ, TIMER_INTERRUPT, 0);        // sent to all CPUs
   remapIRQ(KEYBOARD_IRQ, KEYBOARD_INTERRUPT, 1);  // sent to single CPU
+  remapIRQ(MOUSE_IRQ, MOUSE_INTERRUPT, 1);        // sent to single CPU
   remapIRQ(SPURIOUS_IRQ, SPURIOUS_INTERRUPT, 0);  // sent to all CPUs
   loadIDT(&idtDesc);
 }

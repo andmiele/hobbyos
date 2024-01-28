@@ -18,7 +18,7 @@
 #include <stdint.h>
 
 // Print size characters from buffer
-void printBuffer(char *buffer, size_t size, char color);
+void printBuffer(char *buffer, size_t size, uint8_t r, uint8_t g, uint8_t b);
 
 // Print format string
 // supported specifiers: %d (signed integer), %u (unsigned integer),
@@ -36,4 +36,8 @@ int itoa(int64_t number, char *buffer, int radix);
 // returns string size
 int utoa(uint64_t number, char *buffer, int radix);
 
+// Disable kernel printk
+void printkDisable();
+// Enable kernel printk
+void printkEnable();
 #endif

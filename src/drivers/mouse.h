@@ -11,21 +11,9 @@
  * limitations under the License.
  */
 
-#ifndef _VGA_H_
-#define _VGA_H_
+#define N_PIXELS_MOUSE_MOVE 3
 
-#include <stdint.h>
-
-#include "../memory/memory.h"
-
-#define VGA_WIDTH 80
-#define VGA_HEIGHT 20
-#define VGA_MEM_PTR (0xb8000 + KERNEL_SPACE_BASE_VIRTUAL_ADDRESS)
-#define VGA_COLOR_WHITE 15
-
-// Print size characters contained in buffer with color
-void printBufferVGA(char* buffer, size_t size, char color);
-// Initialize video memory with spaces (black color)
-void vgaInit();
-
-#endif
+// Initialize PS2 mouse
+void mouseInit();
+// PS2 Mouse Interrupt Service Routine
+void mouseISR();

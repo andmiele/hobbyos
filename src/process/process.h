@@ -14,7 +14,7 @@
 #ifndef _PROCESS_H_
 #define _PROCESS_H_
 
-#define N_START_USERSPACE_PROCESSES 3
+#define N_START_USERSPACE_PROCESSES 1
 
 #include "../fat16/fat16.h"    // fileDescriptor
 #include "../gdt/gdt.h"        // struct tss
@@ -31,6 +31,10 @@
 #define DEFAULT_TOTAL_PROCESS_SIZE (1024 * 64)  // 16KB
 
 #define MAX_N_FILES_PER_PROCESS 100
+
+#define PROCESS_GUI_WINDOW_R 192
+#define PROCESS_GUI_WINDOW_G 192
+#define PROCESS_GUI_WINDOW_B 192
 
 enum processState {
   PROC_UNUSED,
@@ -55,10 +59,26 @@ struct ring0ProcessContext {
 } __attribute__((packed));
 
 enum processEvent {
-  ZERO_EVENT = -1,
+  ZERO_EVENT = 1,
   PROC_EXIT_EVENT = -2,
   TIMER_WAKEUP_EVENT = -3,
   KEYBOARD_EVENT = -4
+};
+
+struct guiInfo {
+  int64_t winX;                     // top-left window corner x coordinate
+  int64_t winY;                     // top-left window corner y coordinate
+  int64_t winWidth;                 // window width
+  int64_t winHeight;                // window height
+  uint64_t ownsMouse;               // process currently owns mouse pointer
+  uint64_t mouseLeftButtonClicked;  // mouse left button clicked event
+  char *winLabel;                   // process window label
+  size_t winLabelSize;              // process window label size
+  // windows RGB color
+  uint8_t winR;
+  uint8_t winG;
+  uint8_t winB;
+  uint8_t exitButtonClicked;  // exit button was clicked; exit process
 };
 
 struct process {
@@ -76,6 +96,9 @@ struct process {
   struct fileDescriptor
       *fileDescPtrArray[MAX_N_FILES_PER_PROCESS];  // Array of file descriptor
                                                    // pointers for open files
+  struct guiInfo gui;                              // GUI info
+  struct process
+      *nextInWindowDepthOrder;  // Pointer to next process in window depth order
 };
 
 // Initialize startup processes
@@ -98,4 +121,6 @@ void wait();
 int64_t fork(uint64_t rsp, uint64_t rbp, uint64_t rip, uint64_t rflags);
 // Execute program loaded from input file
 int64_t exec(struct process *proc, char *fileName);
+// Handle GUI event
+void processHandleGUIEvent();
 #endif

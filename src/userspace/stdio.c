@@ -197,5 +197,5 @@ void printf(const char *formatStr, ...) {
     }
   }
   // sysPrintBuffer syscall
-  sysCall(0, (uint64_t)buffer, size, VGA_COLOR_WHITE, 0, 0);
+  sysCall(0, (uint64_t)buffer, size, 1, 255, 0);
 }

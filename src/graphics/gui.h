@@ -11,21 +11,21 @@
  * limitations under the License.
  */
 
-#ifndef _VGA_H_
-#define _VGA_H_
+#ifndef _GUI_H_
+#define _GUI_H_
 
+#include <stddef.h>
 #include <stdint.h>
 
-#include "../memory/memory.h"
+#define WINDOW_BAR_HEIGHT 20
+#define COLOR_BUTTON_HEIGHT 30
+#define COLOR_BUTTON_WIDTH (12 * 10)
+#define EXIT_BUTTON_RADIUS (WINDOW_BAR_HEIGHT / 2)
+#define MAX_WIN_LABEL_SIZE 10
 
-#define VGA_WIDTH 80
-#define VGA_HEIGHT 20
-#define VGA_MEM_PTR (0xb8000 + KERNEL_SPACE_BASE_VIRTUAL_ADDRESS)
-#define VGA_COLOR_WHITE 15
-
-// Print size characters contained in buffer with color
-void printBufferVGA(char* buffer, size_t size, char color);
-// Initialize video memory with spaces (black color)
-void vgaInit();
-
+// Draw width * height process window using RGB color; x and y are coordinates
+// of top-left corner
+int64_t drawWindow(uint64_t x, uint64_t y, uint64_t width, uint64_t height,
+                   uint8_t r, uint8_t g, uint8_t bi, char* winLabel,
+                   size_t winLabelSize);
 #endif

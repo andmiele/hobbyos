@@ -14,19 +14,17 @@
 
 #include "syscall.h"
 
-#include "../acpi/acpi.h"        // MAX_N_CORES_SUPPORTED
-#include "../fat16/fat16.h"      // Filesystem
-#include "../gdt/gdt.h"          // TSS
-#include "../idt/idt.h"          // getTicks
-#include "../kernel.h"           // SUCCESS
-#include "../lib/lib.h"          // memset
-#include "../memory/memory.h"    // kAllocPage, getMemorySize
-#include "../process/process.h"  // sleep
-#include "../stdio/stdio.h"      // printk
-#include "../vga/vga.h"          // printBuffer
-#include "drivers/keyboard.h"    // readFromKeyboardQueue
-
-void printRsp(uint64_t rsp) { printk("RSP %x\n", rsp); }
+#include "../acpi/acpi.h"          // MAX_N_CORES_SUPPORTED
+#include "../fat16/fat16.h"        // Filesystem
+#include "../gdt/gdt.h"            // TSS
+#include "../graphics/graphics.h"  // printBuffer
+#include "../idt/idt.h"            // getTicks
+#include "../kernel.h"             // SUCCESS
+#include "../lib/lib.h"            // memset
+#include "../memory/memory.h"      // kAllocPage, getMemorySize
+#include "../process/process.h"    // sleep
+#include "../stdio/stdio.h"        // printk
+#include "drivers/keyboard.h"      // readFromKeyboardQueue
 
 // Array of TSSs; one per CPU core; ../gdt/gdt.c
 extern struct tss tssArray[MAX_N_CORES_SUPPORTED];
@@ -52,8 +50,10 @@ extern uint64_t getCoreId();  // ../kernel.asm
 // Array of pointers to current running process, one per core
 extern struct process *currentProcessArray[MAX_N_CORES_SUPPORTED];
 
-static uint64_t sysPrintBuffer(char *buffer, size_t size, char color) {
-  printBuffer(buffer, size, color);
+static uint64_t sysPrintBuffer(char *buffer, size_t size, uint8_t r, uint8_t g,
+                               uint8_t b) {
+  printBuffer(buffer, size, r, g, b);
+  flushVideoMemory();
   return size;
 }
 

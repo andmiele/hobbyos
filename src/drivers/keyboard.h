@@ -45,6 +45,9 @@ struct keyboardQueue {
   unsigned back;
 };
 
+// Enable PS2 keyboard; to be called after mouse initialization
+void keyboardInit();
+
 // keyboard interrupt service routine
 void keyboardISR();
 

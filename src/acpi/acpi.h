@@ -24,6 +24,7 @@
 // IRQs
 #define TIMER_IRQ 0x00
 #define KEYBOARD_IRQ 0x01
+#define MOUSE_IRQ 0x0C
 #define SPURIOUS_IRQ 0x07
 
 // Maximum number of CPU cores supported

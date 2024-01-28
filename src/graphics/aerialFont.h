@@ -11,21 +11,16 @@
  * limitations under the License.
  */
 
-#ifndef _VGA_H_
-#define _VGA_H_
+#ifndef _AERIAL_FONT_H_
+#define _AERIAL_FONT_H_
 
 #include <stdint.h>
 
-#include "../memory/memory.h"
+#define N_PRINTABLE_CHARACTERS 127
+#define AERIAL_FONT_HEIGHT 15
+#define AERIAL_FONT_WIDTH 10
 
-#define VGA_WIDTH 80
-#define VGA_HEIGHT 20
-#define VGA_MEM_PTR (0xb8000 + KERNEL_SPACE_BASE_VIRTUAL_ADDRESS)
-#define VGA_COLOR_WHITE 15
-
-// Print size characters contained in buffer with color
-void printBufferVGA(char* buffer, size_t size, char color);
-// Initialize video memory with spaces (black color)
-void vgaInit();
-
+// If c is a printable character and its glyph has a pixel set at position (x,y)
+// returns 1 and returns 0 otherwise
+int64_t hasPixel(char c, uint64_t x, uint64_t y);
 #endif

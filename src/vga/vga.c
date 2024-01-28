@@ -68,9 +68,8 @@ static void writeCharVGA(char character, char color) {
       }
     }
     // clear last row
-    for (int x = 0; x < VGA_WIDTH; x++) {
+    for (int x = 0; x < VGA_WIDTH; x++)
       videoMem[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = combineCharColorVGA(0, 0);
-    }
     videoMemCursorY = VGA_HEIGHT - 1;
   }
 
@@ -106,10 +105,8 @@ void vgaInit() {
 }
 
 // Print size characters contained in buffer with color
-void printBuffer(char *buffer, size_t size, char color) {
+void printBufferVGA(char *buffer, size_t size, char color) {
   spinLock(&vgaLock);
-  for (int i = 0; i < size; i++) {
-    writeCharVGA(buffer[i], color);
-  }
+  for (int i = 0; i < size; i++) writeCharVGA(buffer[i], color);
   spinUnlock(&vgaLock);
 }

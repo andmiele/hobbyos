@@ -13,7 +13,8 @@
 
 #include "memory.h"
 
-#include "../acpi/acpi.h"  // IOAPIC addresses
+#include "../acpi/acpi.h"          // IOAPIC addresses
+#include "../graphics/graphics.h"  // frame buffer address and size
 #include "../kernel.h"
 #include "../lib/lib.h"
 #include "../process/process.h"
@@ -417,8 +418,8 @@ uint64_t *kSetupVM() {
     KERNEL_PANIC(errCode);
   }
 
-  // printk("High memory 1GB Kernel mapping %x\n",
-  // KERNEL_SPACE_BASE_VIRTUAL_ADDRESS);
+  //   printk("High memory 1GB Kernel mapping %x\n",
+  //   KERNEL_SPACE_BASE_VIRTUAL_ADDRESS);
   // zero out PML4T page
   memset(pml4TPageMapPtr, 0, PAGE_SIZE);
   errCode = kMapPagesForAddrRange(
@@ -431,8 +432,8 @@ uint64_t *kSetupVM() {
     KERNEL_PANIC(errCode);
   }
 
-  // printk("Identity mapping for LAPIC address: %x\n",
-  //        PAGE_ALIGN_ADDR_DOWN(gLocalApicAddress));
+  //   printk("Identity mapping for LAPIC address: %x\n",
+  //          PAGE_ALIGN_ADDR_DOWN(gLocalApicAddress));
   errCode = kMapPagesForAddrRange(
       pml4TPageMapPtr, PAGE_ALIGN_ADDR_DOWN(gLocalApicAddress),
       PAGE_ALIGN_ADDR_DOWN(gLocalApicAddress) + PAGE_SIZE,
@@ -446,8 +447,8 @@ uint64_t *kSetupVM() {
   }
 
   for (int i = 0; i < acpiNIoApics; i++) {
-    // printk("Identity mapping for IOAPIC address: %x\n",
-    //       PAGE_ALIGN_ADDR_DOWN(ioApicAddresses[i]));
+    //     printk("Identity mapping for IOAPIC address: %x\n",
+    //           PAGE_ALIGN_ADDR_DOWN(ioApicAddresses[i]));
     errCode = kMapPagesForAddrRange(
         pml4TPageMapPtr, PAGE_ALIGN_ADDR_DOWN(ioApicAddresses[i]),
         PAGE_ALIGN_ADDR_DOWN(ioApicAddresses[i]) + PAGE_SIZE,
@@ -460,6 +461,24 @@ uint64_t *kSetupVM() {
       KERNEL_PANIC(errCode);
     }
   }
+
+  // Map VBE frame buffer
+  size_t fbSize = getFrameBufferSize();
+  uint64_t fbAddress = getFrameBufferAddress();
+
+  //  printk("Identity mapping for VBE frame buffer: %x (%u bytes)\n",
+  //          PAGE_ALIGN_ADDR_DOWN(fbAddress), fbSize);
+  errCode = kMapPagesForAddrRange(
+      pml4TPageMapPtr, PAGE_ALIGN_ADDR_DOWN(fbAddress),
+      PAGE_ALIGN_ADDR_UP(fbAddress + fbSize), PAGE_ALIGN_ADDR_DOWN(fbAddress),
+      PAGE_DIRECTORY_ENTRY_PRESENT | PAGE_DIRECTORY_ENTRY_WRITABLE);
+  if (errCode != 0) {
+    printk(
+        "ERROR kSetupVM: VBE frame buffer identity mapping in "
+        "kMapPagesForAddrRange failed\n");
+    KERNEL_PANIC(errCode);
+  }
+
   return pml4TPageMapPtr;
 }
 // Initialize kernel space virtual memory

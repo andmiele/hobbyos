@@ -14,9 +14,9 @@
 ; assembly code definitions
 
 MAX_N_CORES equ 64
-N_KERNEL_DISK_SECTORS equ 178
+N_KERNEL_DISK_SECTORS equ 217
 N_USERSPACE_DISK_SECTORS equ 9
-N_USER_PROCESSES equ 3
+N_USER_PROCESSES equ 1
 
 BPFlag equ 0x7dff				; address of Bootstrap Processor (BP) flag; 
                                                 ; set flag after boot time setup operations are complete so that Application Processors (APs) 

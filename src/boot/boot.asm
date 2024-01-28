@@ -165,6 +165,23 @@ main2:
 
         mov dl, byte[driveId]                   ; save drive id in dl
         mov cx, word[ReservedSectors]           ; move number of FAT16 reserved sectors to cx; used by loader to load kernel from disk
+        
+; VESA BIOS extension (VBE) graphics mode set-up
+        push dx					; save drive id
+        push cx					; save number of FAT16 reserved sectors
+	mov ax, 0x4f01 				; VBE Get Mode Info command
+	mov cx, 0x117                           ; VBE mode 1024x768x64K (R:G:B, 5 bits: 6 bits: 5 bits)
+ 	mov bx, 0x0800 				; segment for VBE Info Block structure
+	mov es, bx				; set segment for int 0x10
+   	mov di, 0x00				; set offset: es:di
+    	int 0x10
+
+; Make the switch to graphics mode
+    	mov ax, 0x4f02				; Set Video Mode command
+    	mov bx, 0x117				; VBE mode 1024x768x64K (R:G:B, 5 bits: 6 bits: 5 bits)
+    	int 0x10				
+    	pop cx					; restore number of FAT16 reserved sectors
+    	pop dx					; restore drive id
 jumpToSecondStage:
        jmp 0x7e00				; jump to second stage / loader
 
@@ -196,7 +213,7 @@ int13LBAErrorMsg: db 'ERR: No LBA support', 0
 cpuidExtendedFunctionsErrorMsg: db 'ERR: no cpuid extended funcs', 0
 cpuidLongModeErrorMsg: db 'ERR: No Long Mode support', 0
 cpuid1GBPagesErrorMsg: db 'ERR: No 1GB page support', 0
-bootMsg: db 'Stage1!', 0xd, 0xa, 0 ; \r\n
+bootMsg: db 'Stage1', 0xd, 0xa, 0 ; \r\n
 driveId: db 0x00        
 
 ; PARTITION TABLE normally starts at 0x1be and contains 4 entries

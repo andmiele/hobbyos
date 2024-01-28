@@ -18,13 +18,35 @@
 #include "../acpi/acpi.h"    // MAX_N_CORES_SUPPORTED
 #include "../fat16/fat16.h"  // loadFile and constants
 #include "../gdt/gdt.h"      // USER_CODE_SEG_SELECTOR, RING3_SELECTOR_BITS
-#include "../kernel.h"       // Kernel error codes
-#include "../lib/lib.h"      // memset, memcpy, List
-#include "../stdio/stdio.h"  // printk
+#include "../graphics/graphics.h"  // VBE graphics
+#include "../graphics/gui.h"       // drawWindow
+#include "../kernel.h"             // Kernel error codes
+#include "../lib/lib.h"            // memset, memcpy, List
+#include "../stdio/stdio.h"        // printk
+
+// Bouncing ball for shell process variables
+static int64_t ballX;
+static int64_t ballY;
+static int64_t dX;
+static int64_t dY;
+#define BALL_RADIUS 5
 
 // File buffer for exec
 static uint8_t
     fileBuffer[MAX_SUPPORTED_FAT16_SECTORS_PER_CLUSTER * SECTOR_SIZE];
+
+// number of cores
+extern uint64_t acpiNCores;
+
+// VESA BIOS Extensions (VBE) info block pointer
+extern struct VBEInfoBlock *gVBEInfoBlockPtr;
+
+// Global mouse pointer position
+extern int64_t gMouseX, gMouseY;
+// Global mouse movement
+extern int64_t gMouseXMove, gMouseYMove;
+
+extern uint64_t gLeftButtonClicked;
 
 // Array flags for tracking if a syscall is running for ISRs; one per CPU core
 extern uint64_t syscallRunningArray[MAX_N_CORES_SUPPORTED];
@@ -39,9 +61,6 @@ extern void spinUnlock(volatile uint8_t *lock);
 
 // returns core id
 extern uint64_t getCoreId();  // ../kernel.asm
-
-// number of cores
-extern uint64_t acpiNCores;
 
 // switch process // ../idt/idt.asm
 void switchUserProcess(struct ring0ProcessContext **currProcRing0Context,
@@ -70,24 +89,56 @@ extern uint64_t *ring0SysCallStackPtrTable[MAX_N_CORES_SUPPORTED];
 struct process *currentProcessArray[MAX_N_CORES_SUPPORTED];
 
 // Ready-state process list
-static struct ListHead readyProcessList;
+static struct List readyProcessList;
 
 // Waiting-state process list
-static struct ListHead eventWaitProcessList;
+static struct List eventWaitProcessList;
 
 // Killed-state process list
-static struct ListHead killedProcessList;
+static struct List killedProcessList;
+
+// Processes having GUI windows; to track window depth for overlap
+static struct process processWindowList;
+// Fill this stack with process pointers from processWindowList (head to tail)
+// to print in decreasing depth order
+static struct process *processWindowDrawOrderStack[MAX_N_PROCESSES];
 
 volatile uint8_t processLock;       // lock for SMP access to critical sections
 extern volatile uint8_t fat16Lock;  // lock for FAT16 shared structures
 
 static struct process processTable[MAX_N_PROCESSES];
 
-static int pid = 0;
+static int64_t pid = 0;
+
+void appendToWindowListHead(struct process *processList, struct process *proc) {
+  proc->nextInWindowDepthOrder = processList->nextInWindowDepthOrder;
+  processList->nextInWindowDepthOrder = proc;
+}
+
+// Remove process from list given its pitd
+static struct process *removeProcessFromWindowList(struct process *list,
+                                                   int64_t pid) {
+  struct process *prev = list;
+  struct process *curr = list->nextInWindowDepthOrder;
+  struct process *proc = NULL;
+
+  while (curr != NULL) {
+    if (curr->pid == pid) {  // found process
+      prev->nextInWindowDepthOrder =
+          curr->nextInWindowDepthOrder;  // remove from list
+      proc = curr;
+
+      break;
+    }
+    prev = curr;
+    curr = curr->nextInWindowDepthOrder;
+  }
+  return proc;
+}
 
 // Remove process waiting for a specific event type from list
 static struct ListNode *removeProcessWaitingForEventFromList(
-    struct ListHead *list, int64_t eventWaitType) {
+    struct List *list, int64_t eventWaitType) {
   struct ListNode *prev =
       (struct ListNode *)list;  // prev points to list->next ptr
   struct ListNode *curr = list->next;
@@ -166,7 +217,6 @@ static struct process *allocateNewProcess() {
   // Obtain unique pid
   proc->pid = pid;
   ++pid;
-
   uint64_t rsp = ((uint64_t)proc->ring0StackBasePtr) + PAGE_SIZE;
 
   proc->intFramePtr =
@@ -220,7 +270,7 @@ static void initIdleProcess() {
       KERNEL_PANIC(ERR_PROCESS);
     }
 
-    printk("Initializing idle process entry %u pid %u core\n", i, pid, c);
+    printk("Initializing idle process entry %u pid %u\n", i, pid);
     struct process *proc = &processTable[i];
     proc->pid = pid;
     ++pid;
@@ -237,17 +287,16 @@ void initStartupProcesses() {
 
   char processFileNameArray[N_START_USERSPACE_PROCESSES]
                            [FAT16_FILENAME_SIZE + FAT16_FILE_EXTENSION_SIZE +
-                            2] = {"SHELL.BIN", "USER1.BIN", "USER2.BIN"};
+                            2] = {"SHELL.BIN"};
 
   uint64_t processCodeSizeArray[N_START_USERSPACE_PROCESSES] = {
-      (11 * SECTOR_SIZE), (11 * SECTOR_SIZE), (11 * SECTOR_SIZE)};
+      (11 * SECTOR_SIZE)};
 
   // initialize idle process
   initIdleProcess();
   for (int pi = 0; pi < N_START_USERSPACE_PROCESSES; pi++) {
     spinLock(&processLock);
     proc = allocateNewProcess();
-
     if (proc == NULL) {
       spinUnlock(&processLock);
       printk("ERROR initStartupProcesses: allocateNewProcess failed\n");
@@ -294,6 +343,28 @@ void initStartupProcesses() {
 
     proc->state = PROC_READY;
     appendToListTail(&readyProcessList, (struct ListNode *)proc);
+    appendToWindowListHead(&processWindowList, proc);
+    proc->gui.winX = 0;
+    proc->gui.winY = 0;
+    proc->gui.winWidth = 200;
+    proc->gui.winHeight = 300;
+    proc->gui.ownsMouse = 0;
+    proc->gui.mouseLeftButtonClicked = 0;
+    proc->gui.winLabel = "Shell";
+    proc->gui.winLabelSize = 5;
+    proc->gui.winR = PROCESS_GUI_WINDOW_R;
+    proc->gui.winG = PROCESS_GUI_WINDOW_G;
+    proc->gui.winB = PROCESS_GUI_WINDOW_B;
+    proc->gui.exitButtonClicked = 0;
+    ballX = proc->gui.winX + BALL_RADIUS + 1;
+    ballY = proc->gui.winY + WINDOW_BAR_HEIGHT + BALL_RADIUS + 1;
+    dX = 2;
+    dY = 2;
+    drawWindow(proc->gui.winX, proc->gui.winY, proc->gui.winWidth,
+               proc->gui.winHeight, PROCESS_GUI_WINDOW_R, PROCESS_GUI_WINDOW_G,
+               PROCESS_GUI_WINDOW_B, proc->gui.winLabel,
+               proc->gui.winLabelSize);
+    flushVideoMemory();
     spinUnlock(&processLock);
   }
 }
@@ -330,7 +401,7 @@ static void schedule() {
   }
 
   else {
-    nextProcess = (struct process *)removeListHead(&readyProcessList);
+    nextProcess = (struct process *)removeList(&readyProcessList);
     // printk("CORE %d: Scheduling Process %d from %d\n", coreId,
     // nextProcess->pid,
     //        currentProcess->pid);
@@ -345,6 +416,7 @@ static void schedule() {
 
   nextProcess->state = PROC_RUNNING;
   currentProcessArray[coreId] = nextProcess;
+
   // For idle processes, the ring0 process context pointer points to an address
   // within the initial kernel stack // This function pushes the 6 x64
   // callee-saved registers onto the stack and thens sets the ring0 process
@@ -353,6 +425,19 @@ static void schedule() {
                     nextProcess->ring0ProcessContextPtr);
 }
 
+// Wake up processes waiting on specific event (remove from eventWait list and
+// add to ready list) from sleeping state
+void wakeUpNoLock(enum processEvent eventWaitType) {
+  struct process *proc = (struct process *)removeProcessWaitingForEventFromList(
+      &eventWaitProcessList, eventWaitType);
+
+  while (proc != NULL) {
+    proc->state = PROC_READY;
+    appendToListTail(&readyProcessList, (struct ListNode *)proc);
+    proc = (struct process *)removeProcessWaitingForEventFromList(
+        &eventWaitProcessList, eventWaitType);
+  }
+}
 // Have current process yield and run scheduler
 void yield() {
   uint64_t coreId = getCoreId();
@@ -360,7 +445,7 @@ void yield() {
 
   if (isListEmpty(&readyProcessList)) {
     // printk("Yield on core %d: empty Ready ProcessList, ", coreId);
-    if (currentProcessArray[coreId]->pid != 0) {
+    if (currentProcessArray[coreId]->pid != coreId) {
       //    printk("keep running Process %d\n",
       //    currentProcessArray[coreId]->pid);
     } else {
@@ -377,7 +462,6 @@ void yield() {
   if (currentProcess->pid != coreId) {
     appendToListTail(&readyProcessList, (struct ListNode *)currentProcess);
   }
-
   schedule();
 }
 
@@ -555,8 +639,29 @@ int64_t fork(uint64_t rsp, uint64_t rbp, uint64_t rip, uint64_t rflags) {
   newProcess->intFramePtr->rflags = rflags;
 
   appendToListTail(&readyProcessList, (struct ListNode *)newProcess);
-  spinUnlock(&processLock);
 
+  appendToWindowListHead(&processWindowList, newProcess);
+
+  newProcess->gui.winX = newProcess->pid * WINDOW_BAR_HEIGHT;
+  newProcess->gui.winY = newProcess->pid * WINDOW_BAR_HEIGHT;
+  newProcess->gui.winWidth = 200;
+  newProcess->gui.winHeight = 300;
+  newProcess->gui.ownsMouse = 0;
+  newProcess->gui.mouseLeftButtonClicked = 0;
+  newProcess->gui.winLabel = "Proc";
+  newProcess->gui.winLabelSize = 5;
+  newProcess->gui.winR = PROCESS_GUI_WINDOW_R;
+  newProcess->gui.winG = PROCESS_GUI_WINDOW_G;
+  newProcess->gui.winB = PROCESS_GUI_WINDOW_B;
+  newProcess->gui.exitButtonClicked = 0;
+
+  drawWindow(newProcess->gui.winX, newProcess->gui.winY,
+             newProcess->gui.winWidth, newProcess->gui.winHeight,
+             PROCESS_GUI_WINDOW_R, PROCESS_GUI_WINDOW_G, PROCESS_GUI_WINDOW_B,
+             newProcess->gui.winLabel, newProcess->gui.winLabelSize);
+  drawMousePointer(255, 0, 0);
+  flushVideoMemory();
+  spinUnlock(&processLock);
   return newProcess->pid;
 }
 
@@ -654,4 +759,193 @@ int64_t exec(struct process *proc, char *fileName) {
       DEFAULT_TOTAL_PROCESS_SIZE;  // set user space stack pointer to the end
                                    // of process virtual address space
   return 0;
+}
+
+static int64_t ownsMousePointer(struct process *proc) {
+  if ((gMouseY >= proc->gui.winY) &&
+      (gMouseY < proc->gui.winY + proc->gui.winHeight + WINDOW_BAR_HEIGHT) &&
+      (gMouseX >= proc->gui.winX) &&
+      (gMouseX < proc->gui.winX + proc->gui.winWidth)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static int64_t onColorButton(struct process *proc) {
+  if ((gMouseY >= proc->gui.winY + WINDOW_BAR_HEIGHT) &&
+      (gMouseY < proc->gui.winY + WINDOW_BAR_HEIGHT + COLOR_BUTTON_HEIGHT) &&
+      (gMouseX >= proc->gui.winX) &&
+      (gMouseX < proc->gui.winX + COLOR_BUTTON_WIDTH)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static int64_t onExitButton(struct process *proc) {
+  int64_t centerX =
+      proc->gui.winX + proc->gui.winWidth - EXIT_BUTTON_RADIUS - 1;
+  int64_t centerY = proc->gui.winY + EXIT_BUTTON_RADIUS + 1;
+
+  int64_t diffX = ((int64_t)gMouseX) - (centerX);
+  if (diffX < 0) {
+    diffX = -diffX;
+  }
+  int64_t diffY = ((int64_t)gMouseY) - (centerY);
+  if (diffY < 0) {
+    diffY = -diffY;
+  }
+
+  if (diffX * diffX + diffY * diffY <=
+      EXIT_BUTTON_RADIUS * EXIT_BUTTON_RADIUS) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+// Returns 1 if process still owns the mouse pointer and zero otherwise
+static int64_t updateGUIInfo(struct process *proc) {
+  if (proc->gui.mouseLeftButtonClicked &&
+      gLeftButtonClicked) {  // left click and drag
+    if (gMouseXMove > 0) {   // right screen boundary check
+      if (proc->gui.winX + gMouseXMove + proc->gui.winWidth <
+          gVBEInfoBlockPtr->xResolution) {
+        proc->gui.winX += gMouseXMove;
+      }
+    }
+
+    if (gMouseXMove < 0) {  // left screen boundary check
+      if (proc->gui.winX + gMouseXMove >= 0) {
+        proc->gui.winX += gMouseXMove;
+      }
+    }
+
+    if (gMouseYMove > 0) {  // bottom screen boundary check
+      if (proc->gui.winY + gMouseYMove + proc->gui.winHeight +
+              WINDOW_BAR_HEIGHT <
+          gVBEInfoBlockPtr->yResolution) {
+        proc->gui.winY += gMouseYMove;
+      }
+    }
+
+    if (gMouseYMove < 0) {  // top screen boundary check
+      if (proc->gui.winY + gMouseYMove >= 0) {
+        proc->gui.winY += gMouseYMove;
+      }
+    }
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+// Handle GUI event
+void processHandleGUIEvent() {
+  spinLock(&processLock);
+
+  // Define mouse ownership, check for left-click drag and left-click
+  // Start from head of window list
+  struct process *proc = processWindowList.nextInWindowDepthOrder;
+  while (proc != NULL) {
+    if (proc->pid >= acpiNCores) {  // skip idle process
+      uint64_t dragged = 0;
+      if (proc->gui.ownsMouse) {  // // mouse pointer was owned by process,
+                                  // left button still pressed, dragged
+        dragged = updateGUIInfo(proc);
+        if (dragged) {
+          if (proc->pid == acpiNCores) {  // if shell, move bouncing ball
+            ballX += gMouseXMove;
+            ballY += gMouseYMove;
+          }
+          break;
+        }
+      }
+
+      if (!dragged) {
+        if (ownsMousePointer(proc)) {
+          if (proc->gui.mouseLeftButtonClicked &&
+              (gLeftButtonClicked ==
+               0))  // single left click release, check buttons
+          {
+            if (onColorButton(proc)) {  // switch color button pressed
+              // switch color dark<->light
+              proc->gui.winR = 255 - proc->gui.winR;
+              proc->gui.winG = 255 - proc->gui.winG;
+              proc->gui.winB = 255 - proc->gui.winB;
+            }
+            if (onExitButton(proc)) {  // close window
+              proc->gui.exitButtonClicked = 1;
+              proc->gui.ownsMouse = 0;
+            } else {
+              proc->gui.mouseLeftButtonClicked = 0;
+              proc->gui.ownsMouse = 1;
+              break;
+            }
+          } else {
+            if (gLeftButtonClicked) {  // left click pressed
+              proc->gui.mouseLeftButtonClicked = 1;
+              proc->gui.ownsMouse = 1;
+              break;
+            } else {
+              proc->gui.mouseLeftButtonClicked = 0;
+              proc->gui.ownsMouse = 0;
+            }
+          }
+        } else {
+          proc->gui.mouseLeftButtonClicked = 0;
+          proc->gui.ownsMouse = 0;
+        }
+      }
+    }
+    proc = proc->nextInWindowDepthOrder;
+  }
+
+  // if exit button or left button were clicked, remove window
+  if ((proc != NULL) &&
+      (proc->gui.exitButtonClicked || proc->gui.mouseLeftButtonClicked)) {
+    removeProcessFromWindowList(&processWindowList, proc->pid);
+  }
+  // if left button was clicked move processWindow to front
+  if ((proc != NULL) && (!proc->gui.exitButtonClicked) &&
+      proc->gui.mouseLeftButtonClicked) {
+    appendToWindowListHead(&processWindowList, proc);
+  }
+
+  // Draw windows; Start from head of window list
+  proc = processWindowList.nextInWindowDepthOrder;
+  uint64_t nWindows = 0;
+
+  while (proc != NULL) {
+    processWindowDrawOrderStack[nWindows++] = proc;
+    proc = proc->nextInWindowDepthOrder;
+  }
+  for (int i = nWindows - 1; i >= 0; i--) {
+    proc = processWindowDrawOrderStack[i];
+    drawWindow(proc->gui.winX, proc->gui.winY, proc->gui.winWidth,
+               proc->gui.winHeight, proc->gui.winR, proc->gui.winG,
+               proc->gui.winB, proc->gui.winLabel, proc->gui.winLabelSize);
+    // BOUNCING BALL FOR shell  process
+    if (proc->pid == acpiNCores) {
+      drawCircle(ballX, ballY, BALL_RADIUS, 0, 0, 255);
+      if (ballX + dX > proc->gui.winX + proc->gui.winWidth - BALL_RADIUS - 1) {
+        dX = -dX;
+      }
+      if (ballX + dX - BALL_RADIUS < proc->gui.winX) {
+        dX = -dX;
+      }
+      if (ballY + dY > proc->gui.winY + WINDOW_BAR_HEIGHT +
+                           proc->gui.winHeight - BALL_RADIUS - 1) {
+        dY = -dY;
+      }
+      if (ballY + dY - BALL_RADIUS < proc->gui.winY + WINDOW_BAR_HEIGHT) {
+        dY = -dY;
+      }
+
+      ballX += dX;
+      ballY += dY;
+    }
+  }
+  spinUnlock(&processLock);
 }

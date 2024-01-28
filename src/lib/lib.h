@@ -27,14 +27,15 @@ struct ListNode {
   struct ListNode *next;
 };
 
-struct ListHead {
+struct List {
   struct ListNode *next;
   struct ListNode *tail;
 };
 
-void appendToListTail(struct ListHead *list, struct ListNode *node);
-struct ListNode *removeListHead(struct ListHead *list);
-int isListEmpty(const struct ListHead *list);
+void appendToListHead(struct List *list, struct ListNode *node);
+void appendToListTail(struct List *list, struct ListNode *node);
+struct ListNode *removeList(struct List *list);
+int isListEmpty(const struct List *list);
 
 /*** Memory utility functions ***/
 

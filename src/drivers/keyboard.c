@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "../acpi/acpi.h"        // MAX_N_CORES_SUPPORTED
+#include "../idt/idt.h"          // PS2 constants
 #include "../io/io.h"            // inb
 #include "../process/process.h"  // sleep, wakeUp
 #include "../stdio/stdio.h"      // printk
@@ -191,6 +192,7 @@ static char readCharFromKeyboard() {
   return character;
 }
 
+// Keyboard Interrupt Service Routine
 void keyboardISR() {
   char c = readCharFromKeyboard();
   if (c > 0) {
@@ -198,4 +200,28 @@ void keyboardISR() {
     // wake up process waiting for keyboard
     wakeUp(KEYBOARD_EVENT);
   }
+}
+
+// Enable PS2 keyboard; to be called after mouse initialization
+void keyboardInit() {
+  outb(PS2_COMMAND_IO_PORT, PS2_DISABLE_FIRST_PORT_CMD);
+  outb(PS2_COMMAND_IO_PORT,
+       PS2_DISABLE_SECOND_PORT_CMD);  // ignored if not supported
+  // flush device buffer
+  inb(PS2_DATA_IO_PORT);
+  outb(PS2_COMMAND_IO_PORT, PS2_READ_BYTE_0_CMD);
+  uint8_t status = inb(PS2_DATA_IO_PORT);
+  uint8_t secondCh =
+      (status & 0b00100000) == 0b00100000;  // if 0 no second channel
+  if (secondCh == 0) {
+    printk("Keyboard initialization: there is no second channel\n");
+  }
+  status |= 0b01000011;  //...0x11 enabled irqs for both ports
+  outb(PS2_COMMAND_IO_PORT, PS2_WRITE_NEXT_BYTE_0_CMD);
+  outb(PS2_DATA_IO_PORT, status);
+  // finsh PS/2 initalization by reenabling devices
+  outb(PS2_COMMAND_IO_PORT, PS2_ENABLE_FIRST_PORT_CMD);
+  outb(PS2_COMMAND_IO_PORT,
+       PS2_ENABLE_SECOND_PORT_CMD);  // ignored if unsupported
+  outb(PS2_COMMAND_IO_PORT, PS2_RESET_CMD);
 }

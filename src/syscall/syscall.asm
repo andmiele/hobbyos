@@ -134,7 +134,7 @@ checkSyscallIndex:
         mov rsi, rdx
         mov rdx, r10			; rcx argument is stored in r10 as rcx is overwritten with rip by syscall
         mov rcx, r8 			
-        mov r8, r9
+        mov r9, r8
         jmp .callFunction
 .forkSysCallArgs:
         mov rdi, r13 			; saved userspace rsp

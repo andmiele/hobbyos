@@ -28,15 +28,11 @@ extern int64_t closeFile(int64_t fileDescriptorIndex);
 #define COMMAND_BUFFER_SIZE 80
 #define N_COMMANDS 1
 
-char *commandStrings[N_COMMANDS] = {"sysmem"};
-size_t commandStringSizes[N_COMMANDS] = {6};
 
-// SHELL COMMAND FUNCTIONS
-void getMemorySizeCmd() {
-  printf("Total system memory: %u MB\n", getMemorySize() / (1024 * 1024));
-}
+// Launch new processes/windows by typing p and then enter!
 
-static void *commandFunctions[N_COMMANDS] = {(void *)getMemorySizeCmd};
+char *commandStrings[N_COMMANDS] = {"p"};
+size_t commandStringSizes[N_COMMANDS] = {1};
 
 static size_t readCommand(char *commandBuffer) {
   char cs[2] = {0};
@@ -44,16 +40,13 @@ static size_t readCommand(char *commandBuffer) {
   while (1) {
     cs[0] = readCharFromkeyboard();
     if (cs[0] == '\n' || commandStringSize >= 80) {
-      printf("%s", cs);
       break;
     } else if (cs[0] == '\b') {
       if (commandStringSize > 0) {
         commandBuffer[--commandStringSize] = 0;
-        printf("%s", cs);
       }
     } else {
       commandBuffer[commandStringSize++] = cs[0];
-      printf("%s", cs);
     }
   }
 
@@ -74,7 +67,7 @@ int main() {
   uint64_t commandStringSize = 0;
   int command = 0;
   while (1) {
-    printf("shell~: ");
+    // printf("shell~:");
     memset(buffer, 0, COMMAND_BUFFER_SIZE);
     commandStringSize = readCommand(buffer);
     if (commandStringSize == 0) {
@@ -84,30 +77,20 @@ int main() {
     command = parseCommand(buffer, commandStringSize);
 
     if (command < 0) {
-      // command not found, try to open and execute file named as input command
-      int64_t fileDescriptorIndex = openFile(buffer);
-      if (fileDescriptorIndex < 0) {
-        printf("Invalid command\n");
-      } else {
-        int64_t status = closeFile(fileDescriptorIndex);
-        if (status != 0) {
-          printf("WARNING: could not close file!\n");
-        }
-        int64_t pid = fork();
-        if (pid < 0) {
-          printf("Shell error: fork failed!");
-        } else {
-          if (pid == 0) {  // child
-            exec(buffer);
-          } else {
-            pwait(pid);
-          }
-        }
-      }
     } else {
       switch (command) {
         case 0:
-          ((void (*)())(commandFunctions[0]))();
+          int pid = fork();
+          if (pid == 0) {
+            // child process
+            while (1) {
+            }
+          } else {
+            if (pid > 0) {
+              // shell
+              // pwait(pid);
+            }
+          }
           break;
         default:
           break;

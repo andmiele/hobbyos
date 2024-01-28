@@ -1,4 +1,4 @@
-FILES = ./build/kernel.asm.o ./build/kernel.o ./build/acpi/acpi.o ./build/idt/idt.asm.o ./build/io/io.asm.o ./build/idt/idt.o ./build/lib/lib.o ./build/memory/memory.asm.o ./build/memory/memory.o ./build/spinlock.asm.o ./build/stdio/stdio.o ./build/vga/vga.o ./build/gdt/gdt.asm.o ./build/gdt/gdt.o ./build/process/process.o ./build/syscall/syscall.o ./build/syscall/syscall.asm.o ./build/drivers/keyboard.o ./build/drivers/disk.o ./build/fat16/fat16.o
+FILES = ./build/kernel.asm.o ./build/kernel.o ./build/acpi/acpi.o ./build/idt/idt.asm.o ./build/io/io.asm.o ./build/idt/idt.o ./build/lib/lib.o ./build/memory/memory.asm.o ./build/memory/memory.o ./build/spinlock.asm.o ./build/stdio/stdio.o ./build/vga/vga.o ./build/graphics/graphics.o ./build/graphics/aerialFont.o ./build/graphics/gui.o  ./build/gdt/gdt.asm.o ./build/gdt/gdt.o ./build/process/process.o ./build/syscall/syscall.o ./build/syscall/syscall.asm.o ./build/drivers/keyboard.o  ./build/drivers/mouse.o ./build/drivers/disk.o ./build/fat16/fat16.o
 USERSPACEFILES = ./build/userspace/start.asm.o ./build/userspace/syscall.asm.o ./build/userspace/stdio.o ./build/userspace/stdlib.o
 USERPROGRAMS = ./build/userspace/user1.o ./build/userspace/shell.o ./build/userspace/user2.o ./build/userspace/test.o ./build/userspace/ls.o
 
@@ -107,8 +107,21 @@ all: ./bin/boot.bin ./bin/loader.bin ./bin/kernel.bin ./bin/user1.bin ./bin/shel
 ./build/vga/vga.o: ./src/vga/vga.c ./src/vga/vga.h
 	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/vga/vga.c -o ./build/vga/vga.o
 
+./build/graphics/aerialFont.o: ./src/graphics/aerialFont.c ./src/graphics/aerialFont.h
+	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/graphics/aerialFont.c -o ./build/graphics/aerialFont.o
+
+./build/graphics/graphics.o: ./src/graphics/graphics.c ./src/graphics/graphics.h 
+	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/graphics/graphics.c -o ./build/graphics/graphics.o
+
+./build/graphics/gui.o: ./src/graphics/gui.c ./src/graphics/gui.h 
+	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/graphics/gui.c -o ./build/graphics/gui.o
+
+
 ./build/drivers/keyboard.o: ./src/drivers/keyboard.c ./src/drivers/keyboard.h
 	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/drivers/keyboard.c -o ./build/drivers/keyboard.o
+
+./build/drivers/mouse.o: ./src/drivers/mouse.c ./src/drivers/mouse.h
+	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/drivers/mouse.c -o ./build/drivers/mouse.o
 
 ./build/drivers/disk.o: ./src/drivers/disk.c ./src/drivers/disk.h
 	x86_64-elf-gcc $(FLAGS) -std=gnu99 -c ./src/drivers/disk.c -o ./build/drivers/disk.o

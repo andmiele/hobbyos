@@ -128,15 +128,11 @@ returnFromTimerInterrupt:
 %endmacro
 
 extern gLocalApicAddress 
-extern int20Handler
-extern int21Handler
 extern selectInterruptHandler
 
 global isrAddressArray
-global int20
-global int21
-global intFF
 global noInt
+global intFF
 global loadIDT
 global readCR2
 
