@@ -2,7 +2,7 @@
 
 ## What this OS is and what it is not
 
-My goal, when I set out to write this Operating System (OS), was to go through all the system programming need to boot and setup symmetric multi processing (SMP) on a real multi-core 64-bit x64 CPU from scratch and be able to run multiple user processes with very minimal support for Virtual Memory, hard disk and keyboard.
+My goal, when I set out to write this Operating System (OS), was to go through all the system programming needed to boot and setup symmetric multi processing (SMP) on a real multi-core 64-bit x64 CPU from scratch and be able to run multiple user processes with very minimal support for Virtual Memory, Hard Disk and Keyboard.
 I did this solely for learning purposes and, as expected, the result ended up far from being a realistic or even just usable OS.
 Nevertheless, all the code I wrote to boot the system up, enable 64-bit Long Mode, Virtual Memory, Interrupts, SMP, etc., while not state-of-the-art, is real, in the sense that no shortcuts have been taken and
 it was tested on production level x64 emulators like QEMU and partly on real x64 machines.
