@@ -1,0 +1,4 @@
+qemu-system-x86_64 ./bin/os.bin -cpu qemu64,pdpe1gb -smp 2 -m 4G
+add-symbol-file ./build/kernelfull.o 0x200000
+b _start
+target remote | qemu-system-x86_64 -hda ./bin/os.bin -cpu qemu64,pdpe1gb -smp 2 -m 4G -S -gdb stdio

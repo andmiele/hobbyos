@@ -1,0 +1,4 @@
+add-symbol-file ./build/kernelfull.o 0x100000
+b loadIDT
+target remote | qemu-system-x86_64 -hda ./bin/os.bin -cpu qemu64,pdpe1gb -S -gdb stdio
+b ./src/acpi/acpi.c:391
